@@ -16,11 +16,11 @@ Works with `*`, `-`, and `+` list markers.
 
 ## Installation
 
-### With Lazy.nvim
+### Lazy.nvim
 
 ```lua
 {
-  dir = "~/markdown-checkbox.nvim",
+  "mmvsk/markdown-checkbox.nvim",
   ft = "markdown",
   config = function()
     require("markdown-checkbox").setup()
@@ -32,12 +32,36 @@ Or if you want to customize the keymap:
 
 ```lua
 {
-  dir = "~/markdown-checkbox.nvim",
+  "mmvsk/markdown-checkbox.nvim",
   ft = "markdown",
   config = function()
     require("markdown-checkbox").setup({
       keymap = "<Space>" -- default
     })
+  end
+}
+```
+
+### vim-plug
+
+```vim
+Plug 'mmvsk/markdown-checkbox.nvim'
+```
+
+Then in your config:
+
+```lua
+require("markdown-checkbox").setup()
+```
+
+### packer.nvim
+
+```lua
+use {
+  "mmvsk/markdown-checkbox.nvim",
+  ft = "markdown",
+  config = function()
+    require("markdown-checkbox").setup()
   end
 }
 ```
