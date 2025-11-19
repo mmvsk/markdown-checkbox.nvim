@@ -25,6 +25,81 @@ function M.toggle_checkbox()
   vim.api.nvim_set_current_line(new_line)
 end
 
+-- Continue list item on new line (for 'o' and insert mode <CR>)
+function M.continue_list()
+  local line = vim.api.nvim_get_current_line()
+  local indent, bullet, checkbox, content
+
+  -- Match list patterns:
+  -- 1. With checkbox: "    - [ ] text" or "    - [x] text"
+  -- 2. Without checkbox: "    - text"
+  indent, bullet, checkbox, content = line:match("^(%s*)([%*%-+])%s(%[.%])%s(.*)$")
+
+  if not indent then
+    -- Try without checkbox
+    indent, bullet, content = line:match("^(%s*)([%*%-+])%s(.*)$")
+    checkbox = nil
+  end
+
+  -- If current line is a list item
+  if bullet then
+    -- Check if the list item is empty (no content after bullet/checkbox)
+    if content == "" or content == nil then
+      -- Empty list item: remove bullet and unindent
+      local new_indent = indent:sub(5) or "" -- Remove 4 spaces (one level)
+      if new_indent == "" and indent == "" then
+        -- Already at root level, just clear the line
+        vim.api.nvim_set_current_line("")
+      else
+        vim.api.nvim_set_current_line(new_indent)
+      end
+      return true -- Handled
+    else
+      -- Non-empty list item: continue with new bullet
+      local new_line
+      if checkbox then
+        -- Continue with unchecked checkbox
+        new_line = indent .. bullet .. " [ ] "
+      else
+        -- Continue with plain bullet
+        new_line = indent .. bullet .. " "
+      end
+
+      -- Insert new line below and set content
+      local row = vim.api.nvim_win_get_cursor(0)[1]
+      vim.api.nvim_buf_set_lines(0, row, row, false, { new_line })
+      vim.api.nvim_win_set_cursor(0, { row + 1, #new_line })
+      return true -- Handled
+    end
+  end
+
+  return false -- Not a list item, let default behavior happen
+end
+
+-- Handle 'o' in normal mode
+function M.handle_o()
+  if M.continue_list() then
+    vim.cmd("startinsert!")
+  else
+    -- Default 'o' behavior
+    vim.cmd("normal! o")
+  end
+end
+
+-- Handle 'O' in normal mode
+function M.handle_O()
+  -- For 'O' we just use default behavior (insert line above)
+  vim.cmd("normal! O")
+end
+
+-- Handle <CR> in insert mode
+function M.handle_cr()
+  if not M.continue_list() then
+    -- Not a list, use default <CR>
+    vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<CR>", true, false, true), "n", false)
+  end
+end
+
 -- Setup function to configure keymaps
 function M.setup(opts)
   opts = opts or {}
@@ -34,11 +109,36 @@ function M.setup(opts)
   vim.api.nvim_create_autocmd("FileType", {
     pattern = "markdown",
     callback = function()
+      -- Toggle checkbox
       vim.keymap.set("n", keymap, function()
         require("markdown-checkbox").toggle_checkbox()
       end, {
         buffer = true,
         desc = "Toggle markdown checkbox"
+      })
+
+      -- Continue list on 'o' in normal mode
+      vim.keymap.set("n", "o", function()
+        require("markdown-checkbox").handle_o()
+      end, {
+        buffer = true,
+        desc = "Continue list or open line below"
+      })
+
+      -- Keep default behavior for 'O'
+      vim.keymap.set("n", "O", function()
+        require("markdown-checkbox").handle_O()
+      end, {
+        buffer = true,
+        desc = "Open line above"
+      })
+
+      -- Continue list on <CR> in insert mode
+      vim.keymap.set("i", "<CR>", function()
+        require("markdown-checkbox").handle_cr()
+      end, {
+        buffer = true,
+        desc = "Continue list or new line"
       })
     end
   })

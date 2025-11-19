@@ -6,11 +6,18 @@ It's a logic port of the unmaintained markdown plugin [gabrielelana/vim-markdown
 
 ## Features
 
-Toggle checkboxes in markdown list items by pressing `<Space>` in normal mode:
+### Toggle checkboxes
+
+Press `<Space>` in normal mode to toggle checkboxes:
 
 - `- foo` → `- [ ] foo` (add unchecked checkbox)
 - `- [ ] foo` → `- [x] foo` (check the checkbox)
 - `- [x] foo` → `- foo` (remove checkbox)
+
+### Auto-continue lists
+
+- Press `o` in normal mode or `<Enter>` in insert mode to automatically create a new list item
+- On an empty list item, pressing `<Enter>` removes the bullet and unindents
 
 Works with `*`, `-`, and `+` list markers.
 
