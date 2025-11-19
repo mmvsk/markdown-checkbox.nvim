@@ -83,6 +83,7 @@ function M.handle_o()
   else
     -- Default 'o' behavior
     vim.cmd("normal! o")
+    vim.cmd("startinsert")
   end
 end
 
@@ -90,6 +91,7 @@ end
 function M.handle_O()
   -- For 'O' we just use default behavior (insert line above)
   vim.cmd("normal! O")
+  vim.cmd("startinsert")
 end
 
 -- Handle <CR> in insert mode
