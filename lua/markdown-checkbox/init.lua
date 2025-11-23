@@ -82,8 +82,8 @@ function M.continue_list(split_at_cursor)
       if split_at_cursor and col >= prefix_len and col < #line then
         -- Calculate position within content
         local content_pos = col - prefix_len
-        local content_before = content:sub(1, content_pos)
-        local content_after = content:sub(content_pos + 1)
+        local content_before = content:sub(1, content_pos):gsub("%s+$", "") -- right-trim
+        local content_after = content:sub(content_pos + 1):gsub("^%s+", "") -- left-trim
 
         -- Update current line with content before cursor
         local current_line
