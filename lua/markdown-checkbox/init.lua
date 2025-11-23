@@ -1,5 +1,15 @@
 local M = {}
 
+-- Default configuration
+M.config = {
+  keymap = "<Space>",
+  -- Tab indent behavior for list items:
+  -- "anywhere"      - Tab indents from anywhere in the line (default)
+  -- "content_start" - Tab only indents when cursor is at start of content
+  -- "empty_only"    - Tab only indents on empty list items (legacy behavior)
+  tab_indent = "anywhere",
+}
+
 -- Toggle checkbox on current line
 function M.toggle_checkbox()
   local line = vim.api.nvim_get_current_line()
@@ -141,79 +151,128 @@ function M.handle_cr()
   end
 end
 
--- Handle Tab in insert mode (indent empty list items)
+-- Handle Tab in insert mode (indent list items)
 function M.handle_tab()
   local line = vim.api.nvim_get_current_line()
   local indent, bullet, checkbox, content
+  local prefix_len
 
-  -- Match list patterns to check if it's an empty list item
+  -- Match list patterns
   indent, bullet, checkbox, content = line:match("^(%s*)([%*%-+])%s(%[.%])%s(.*)$")
 
-  if not indent then
+  if indent then
+    prefix_len = #indent + 1 + 1 + 3 + 1 -- indent + bullet + space + checkbox + space
+  else
     -- Try without checkbox
     indent, bullet, content = line:match("^(%s*)([%*%-+])%s(.*)$")
     checkbox = nil
-  end
-
-  -- If it's a list item and empty (no content)
-  if bullet and (content == "" or content == nil) then
-    -- Add 4 spaces of indentation
-    local new_line
-    if checkbox then
-      new_line = indent .. "    " .. bullet .. " " .. checkbox .. " "
-    else
-      new_line = indent .. "    " .. bullet .. " "
+    if indent then
+      prefix_len = #indent + 1 + 1 -- indent + bullet + space
     end
-    vim.api.nvim_set_current_line(new_line)
-    -- Move cursor to end of line
-    vim.api.nvim_win_set_cursor(0, { vim.api.nvim_win_get_cursor(0)[1], #new_line })
-    return true -- Handled
   end
 
-  -- Not an empty list item, use default tab
-  return false
+  if not bullet then
+    return false -- Not a list item
+  end
+
+  local is_empty = content == "" or content == nil
+  local col = vim.api.nvim_win_get_cursor(0)[2]
+  local cursor_at_content_start = col <= prefix_len
+
+  -- Check if we should indent based on config
+  local should_indent = false
+  if M.config.tab_indent == "anywhere" then
+    should_indent = true
+  elseif M.config.tab_indent == "content_start" then
+    should_indent = is_empty or cursor_at_content_start
+  elseif M.config.tab_indent == "empty_only" then
+    should_indent = is_empty
+  end
+
+  if not should_indent then
+    return false
+  end
+
+  -- Add 4 spaces of indentation
+  local new_line
+  if checkbox then
+    new_line = indent .. "    " .. bullet .. " " .. checkbox .. " " .. (content or "")
+  else
+    new_line = indent .. "    " .. bullet .. " " .. (content or "")
+  end
+  vim.api.nvim_set_current_line(new_line)
+  -- Move cursor, accounting for added indentation
+  vim.api.nvim_win_set_cursor(0, { vim.api.nvim_win_get_cursor(0)[1], col + 4 })
+  return true -- Handled
 end
 
--- Handle Shift+Tab in insert mode (unindent empty list items)
+-- Handle Shift+Tab in insert mode (unindent list items)
 function M.handle_shift_tab()
   local line = vim.api.nvim_get_current_line()
   local indent, bullet, checkbox, content
+  local prefix_len
 
-  -- Match list patterns to check if it's an empty list item
+  -- Match list patterns
   indent, bullet, checkbox, content = line:match("^(%s*)([%*%-+])%s(%[.%])%s(.*)$")
 
-  if not indent then
+  if indent then
+    prefix_len = #indent + 1 + 1 + 3 + 1 -- indent + bullet + space + checkbox + space
+  else
     -- Try without checkbox
     indent, bullet, content = line:match("^(%s*)([%*%-+])%s(.*)$")
     checkbox = nil
-  end
-
-  -- If it's a list item and empty (no content)
-  if bullet and (content == "" or content == nil) then
-    -- Remove 4 spaces of indentation (if possible)
-    if #indent >= 4 then
-      local new_indent = indent:sub(5) -- Remove first 4 spaces
-      local new_line
-      if checkbox then
-        new_line = new_indent .. bullet .. " " .. checkbox .. " "
-      else
-        new_line = new_indent .. bullet .. " "
-      end
-      vim.api.nvim_set_current_line(new_line)
-      -- Move cursor to end of line
-      vim.api.nvim_win_set_cursor(0, { vim.api.nvim_win_get_cursor(0)[1], #new_line })
-      return true -- Handled
+    if indent then
+      prefix_len = #indent + 1 + 1 -- indent + bullet + space
     end
   end
 
-  -- Not an empty list item or can't unindent, use default behavior
-  return false
+  if not bullet then
+    return false -- Not a list item
+  end
+
+  -- Can't unindent if no indentation
+  if #indent < 4 then
+    return false
+  end
+
+  local is_empty = content == "" or content == nil
+  local col = vim.api.nvim_win_get_cursor(0)[2]
+  local cursor_at_content_start = col <= prefix_len
+
+  -- Check if we should unindent based on config
+  local should_unindent = false
+  if M.config.tab_indent == "anywhere" then
+    should_unindent = true
+  elseif M.config.tab_indent == "content_start" then
+    should_unindent = is_empty or cursor_at_content_start
+  elseif M.config.tab_indent == "empty_only" then
+    should_unindent = is_empty
+  end
+
+  if not should_unindent then
+    return false
+  end
+
+  -- Remove 4 spaces of indentation
+  local new_indent = indent:sub(5)
+  local new_line
+  if checkbox then
+    new_line = new_indent .. bullet .. " " .. checkbox .. " " .. (content or "")
+  else
+    new_line = new_indent .. bullet .. " " .. (content or "")
+  end
+  vim.api.nvim_set_current_line(new_line)
+  -- Move cursor, accounting for removed indentation
+  vim.api.nvim_win_set_cursor(0, { vim.api.nvim_win_get_cursor(0)[1], math.max(0, col - 4) })
+  return true -- Handled
 end
 
 -- Setup function to configure keymaps
 function M.setup(opts)
   opts = opts or {}
-  local keymap = opts.keymap or "<Space>"
+  -- Merge user options with defaults
+  M.config = vim.tbl_deep_extend("force", M.config, opts)
+  local keymap = M.config.keymap
 
   -- Create autocommand for markdown files
   vim.api.nvim_create_autocmd("FileType", {
@@ -251,7 +310,7 @@ function M.setup(opts)
         desc = "Continue list or new line"
       })
 
-      -- Handle Tab for indenting empty list items
+      -- Handle Tab for indenting list items
       vim.keymap.set("i", "<Tab>", function()
         if not require("markdown-checkbox").handle_tab() then
           -- Use default tab behavior
@@ -259,10 +318,10 @@ function M.setup(opts)
         end
       end, {
         buffer = true,
-        desc = "Indent empty list item or default tab"
+        desc = "Indent list item or default tab"
       })
 
-      -- Handle Shift+Tab for unindenting empty list items
+      -- Handle Shift+Tab for unindenting list items
       vim.keymap.set("i", "<S-Tab>", function()
         if not require("markdown-checkbox").handle_shift_tab() then
           -- Use default shift-tab behavior
@@ -270,7 +329,7 @@ function M.setup(opts)
         end
       end, {
         buffer = true,
-        desc = "Unindent empty list item or default shift-tab"
+        desc = "Unindent list item or default shift-tab"
       })
     end
   })
