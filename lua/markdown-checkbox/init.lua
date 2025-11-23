@@ -25,8 +25,8 @@ function M.toggle_checkbox()
     -- Remove checkbox entirely: - [x] -> -
     new_line = line:gsub("^(%s*[%*%-+])%s%[x%]%s?", "%1 ")
 
-  -- Check if line is a plain list item: - or * or +
-  elseif line:match("^%s*[%*%-+]%s[^%[]") or line:match("^%s*[%*%-+]%s*$") then
+  -- Check if line is a plain list item (not a checkbox): - or * or +
+  elseif line:match("^%s*[%*%-+]%s") or line:match("^%s*[%*%-+]$") then
     -- Add unchecked checkbox: - -> - [ ]
     new_line = line:gsub("^(%s*[%*%-+])%s?", "%1 [ ] ")
   end
