@@ -26,19 +26,28 @@ function M.toggle_checkbox()
 end
 
 -- Continue list item on new line (for 'o' and insert mode <CR>)
-function M.continue_list()
+-- split_at_cursor: if true, split the line at cursor position (for insert mode <CR>)
+function M.continue_list(split_at_cursor)
   local line = vim.api.nvim_get_current_line()
   local indent, bullet, checkbox, content
+  local prefix_len -- length of the prefix (indent + bullet + checkbox + spaces)
 
   -- Match list patterns:
   -- 1. With checkbox: "    - [ ] text" or "    - [x] text"
   -- 2. Without checkbox: "    - text"
   indent, bullet, checkbox, content = line:match("^(%s*)([%*%-+])%s(%[.%])%s(.*)$")
 
-  if not indent then
+  if indent then
+    -- indent + bullet + space + checkbox + space
+    prefix_len = #indent + 1 + 1 + 3 + 1
+  else
     -- Try without checkbox
     indent, bullet, content = line:match("^(%s*)([%*%-+])%s(.*)$")
     checkbox = nil
+    if indent then
+      -- indent + bullet + space
+      prefix_len = #indent + 1 + 1
+    end
   end
 
   -- If current line is a list item
@@ -56,19 +65,49 @@ function M.continue_list()
       return true -- Handled
     else
       -- Non-empty list item: continue with new bullet
-      local new_line
+      local new_prefix
       if checkbox then
         -- Continue with unchecked checkbox
-        new_line = indent .. bullet .. " [ ] "
+        new_prefix = indent .. bullet .. " [ ] "
       else
         -- Continue with plain bullet
-        new_line = indent .. bullet .. " "
+        new_prefix = indent .. bullet .. " "
       end
 
-      -- Insert new line below and set content
       local row = vim.api.nvim_win_get_cursor(0)[1]
-      vim.api.nvim_buf_set_lines(0, row, row, false, { new_line })
-      vim.api.nvim_win_set_cursor(0, { row + 1, #new_line })
+      local col = vim.api.nvim_win_get_cursor(0)[2]
+
+      -- If split_at_cursor is true and cursor is in the middle of content,
+      -- split the line at cursor position
+      if split_at_cursor and col >= prefix_len and col < #line then
+        -- Calculate position within content
+        local content_pos = col - prefix_len
+        local content_before = content:sub(1, content_pos)
+        local content_after = content:sub(content_pos + 1)
+
+        -- Update current line with content before cursor
+        local current_line
+        if checkbox then
+          current_line = indent .. bullet .. " " .. checkbox .. " " .. content_before
+        else
+          current_line = indent .. bullet .. " " .. content_before
+        end
+        vim.api.nvim_set_current_line(current_line)
+
+        -- Create new line with content after cursor
+        local new_line = new_prefix .. content_after
+
+        -- Insert new line below and set content
+        vim.api.nvim_buf_set_lines(0, row, row, false, { new_line })
+        vim.api.nvim_win_set_cursor(0, { row + 1, #new_prefix })
+      else
+        -- Cursor at end of line or split not requested: create empty new list item
+        local new_line = new_prefix
+
+        -- Insert new line below and set content
+        vim.api.nvim_buf_set_lines(0, row, row, false, { new_line })
+        vim.api.nvim_win_set_cursor(0, { row + 1, #new_line })
+      end
       return true -- Handled
     end
   end
@@ -96,7 +135,7 @@ end
 
 -- Handle <CR> in insert mode
 function M.handle_cr()
-  if not M.continue_list() then
+  if not M.continue_list(true) then
     -- Not a list, use default <CR>
     vim.api.nvim_feedkeys(vim.api.nvim_replace_termcodes("<CR>", true, false, true), "n", false)
   end
